@@ -1,0 +1,5 @@
+.git
+.venv
+Dockerfile
+poetry.lock
+**/__pycache__
