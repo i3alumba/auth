@@ -48,4 +48,4 @@ USER djangouser
 
 EXPOSE 8000
 
-CMD python manage.py migrate && gunicorn backend.wsgi:application --bind 0.0.0.0:8000  --workers 5 --log-level DEBUG
+CMD python manage.py migrate && gunicorn auth.wsgi:application --bind 0.0.0.0:8000  --workers 5 --log-level DEBUG
