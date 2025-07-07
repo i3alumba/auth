@@ -170,8 +170,10 @@ SWAGGER_SETTINGS = {
 }
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://frontend",
-    "http://frontend",
+    "https://i3alumba.ru",
+    "http://i3alumba.ru",
+    "https://nginx",
+    "http://nginx",
 ]
 
 REST_REGISTRATION = {
