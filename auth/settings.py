@@ -180,6 +180,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://i3alumba.ru",
     "https://nginx",
     "http://nginx",
+    "https://auth.i3alumba.ru",
+    "http://auth.i3alumba.ru",
 ]
 
 REST_REGISTRATION = {
@@ -189,7 +191,3 @@ REST_REGISTRATION = {
 }
 
 CORS_ALLOW_ALL_ORIGINS = True
-
-# CORS_ALLOWED_ORIGINS = [
-#     "http://"
-# ]
