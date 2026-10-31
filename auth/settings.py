@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DJANGO_DEBUG", True)
+DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() in {"true", "1", "yes"}
 
 ALLOWED_HOSTS = [
     "0.0.0.0",
@@ -51,6 +51,9 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_registration",
+    "rest_framework_simplejwt.token_blacklist",
+    "oauth2_provider",
+    "sso",
 ]
 
 MIDDLEWARE = [
@@ -151,7 +154,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles", "static")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_PREMISSION_CLASSES": [
+    "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -175,19 +178,87 @@ SWAGGER_SETTINGS = {
     }
 }
 
-CSRF_TRUSTED_ORIGINS = [
-    "https://i3alumba.ru",
-    "http://i3alumba.ru",
-    "https://nginx",
-    "http://nginx",
-    "https://auth.i3alumba.ru",
-    "http://auth.i3alumba.ru",
+CSRF_TRUSTED_ORIGINS = ["https://main.i3alumba.ru", "https://auth.i3alumba.ru"]
+CORS_ALLOWED_ORIGINS = CSRF_TRUSTED_ORIGINS
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
+# The app is ClusterIP-only; Traefik overwrites this header at HTTPS termination.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SESSION_COOKIE_DOMAIN = None
+SESSION_COOKIE_NAME = "auth-session" if DEBUG else "__Host-auth-session"
+CSRF_COOKIE_NAME = "auth-csrf" if DEBUG else "__Host-auth-csrf"
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_DOMAIN = None
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = "Lax"
+LOGIN_URL = "/sso/login/"
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+    "django.contrib.auth.hashers.ScryptPasswordHasher",
+    "django.contrib.auth.hashers.BCryptPasswordHasher",
 ]
 
+SSO_MINIO_GUARD_ENABLED = os.environ.get(
+    "SSO_MINIO_GUARD_ENABLED", "false"
+).lower() in {"true", "1", "yes"}
+SSO_MINIO_CONSOLE_URL = os.environ.get("SSO_MINIO_CONSOLE_URL", "http://minio:9001")
+SSO_MINIO_PUBLIC_URL = "https://minio.i3alumba.ru"
+if SSO_MINIO_GUARD_ENABLED:
+    ALLOWED_HOSTS.append("minio.i3alumba.ru")
+
+SSO_ENABLED = os.environ.get("SSO_ENABLED", "false").lower() in {"true", "1", "yes"}
+SSO_MINIO_PKCE_EXCEPTION_CLIENT_ID = os.environ.get(
+    "SSO_MINIO_PKCE_EXCEPTION_CLIENT_ID", ""
+)
+_rsa_key = os.environ.get("SSO_RSA_PRIVATE_KEY", "")
+if os.environ.get("SSO_RSA_PRIVATE_KEY_FILE"):
+    _rsa_key = Path(os.environ["SSO_RSA_PRIVATE_KEY_FILE"]).read_text()
+if SSO_ENABLED:
+    from django.core.exceptions import ImproperlyConfigured
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+
+    try:
+        _key = load_pem_private_key(_rsa_key.encode(), password=None)
+        if not isinstance(_key, RSAPrivateKey) or _key.key_size < 2048:
+            raise ValueError("RSA >= 2048 required")
+    except (ValueError, TypeError) as exc:
+        raise ImproperlyConfigured(
+            "SSO requires a private RSA key (>=2048 bits)"
+        ) from exc
+
+OAUTH2_PROVIDER = {
+    "OIDC_ENABLED": SSO_ENABLED,
+    "OIDC_ISS_ENDPOINT": "https://auth.i3alumba.ru/o",
+    "OIDC_RSA_PRIVATE_KEY": _rsa_key,
+    "OAUTH2_VALIDATOR_CLASS": "sso.validator.SSOValidator",
+    "SCOPES": {
+        "openid": "OpenID",
+        "profile": "Profile",
+        "groups": "Service access",
+        "email": "Email verification status",
+    },
+    "DEFAULT_SCOPES": ["openid"],
+    "OIDC_RESPONSE_TYPES_SUPPORTED": ["code"],
+    "ALLOWED_REDIRECT_URI_SCHEMES": ["https"],
+    "ALLOW_URI_WILDCARDS": False,
+    "PKCE_REQUIRED": True,
+    "ROTATE_REFRESH_TOKEN": True,
+    "REFRESH_TOKEN_REUSE_PROTECTION": True,
+    "REFRESH_TOKEN_GRACE_PERIOD_SECONDS": 0,
+    "REFRESH_TOKEN_EXPIRE_SECONDS": 86400,
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 900,
+}
+
+# No rest_registration routes are mounted; retain the legacy library configuration.
 REST_REGISTRATION = {
     "REGISTER_VERIFICATION_ENABLED": False,
     "REGISTER_EMAIL_VERIFICATION_ENABLED": False,
     "RESET_PASSWORD_VERIFICATION_ENABLED": False,
 }
-
-CORS_ALLOW_ALL_ORIGINS = True

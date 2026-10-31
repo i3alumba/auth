@@ -1,8 +1,8 @@
-FROM python:3.13-slim AS builder
+FROM python:3.13.18-slim AS builder
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    POETRY_VERSION=1.5.1
+    POETRY_VERSION=2.5.1
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -11,16 +11,16 @@ RUN apt-get update && \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install poetry
+RUN pip install "poetry==$POETRY_VERSION"
 
 WORKDIR /app
 
-COPY pyproject.toml ./
+COPY pyproject.toml poetry.lock ./
 
 RUN poetry config virtualenvs.create false && \
     poetry install --no-root --only main
 
-FROM python:3.13-slim
+FROM python:3.13.18-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -48,4 +48,4 @@ USER djangouser
 
 EXPOSE 8000
 
-CMD python manage.py migrate && gunicorn auth.wsgi:application --bind 0.0.0.0:8000  --workers 5 --log-level DEBUG
+CMD python manage.py migrate && gunicorn auth.wsgi:application --bind 0.0.0.0:8000  --workers 5 --log-level info

@@ -15,12 +15,21 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from django.conf import settings
+from sso.sessions import native_login
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
+from sso.minio_guard import console_login
 
 from api.urls import urlpatterns as api_urlpatterns
 
 urlpatterns = [
+    re_path(r"^api/v1/login(?P<suffix>.*)$", console_login),
+    path("api/", include("sso.urls")),
     path("api/", include(api_urlpatterns)),
+    path("sso/login/", native_login),
     path("admin/", admin.site.urls),
 ]
+
+if settings.SSO_ENABLED:
+    urlpatterns += [path("o/", include("sso.oidc_urls"))]
