@@ -70,17 +70,27 @@ Session/CSRF cookies: host-only, HttpOnly, SameSite=Lax, Secure и с префи
 `SSO_MINIO_GUARD_ENABLED=true` включает только малые login API; по умолчанию guard
 отключён (503). `SSO_MINIO_CONSOLE_URL` — доверенная операторская настройка,
 по умолчанию `http://minio:9001`. Public host фиксирован: `minio.i3alumba.ru`.
-Ingress обязан направлять **весь префикс `/api/v1/login`** в Auth, без обхода
-через дополнительные callback paths. Остальной Console остаётся на MinIO.
+Весь префикс `/api/v1/login` должен проходить через method-aware router, без
+обхода через дополнительные callback paths. GET metadata и POST OAuth callback
+направляются в этот guard; **точный native POST `/api/v1/login` — прямо в Console**,
+чтобы аварийный вход не зависел от доступности Auth. Остальной Console остаётся
+на MinIO. Не проксировать все методы через Auth как единственный recovery path.
 
 - `GET /api/v1/login`: переписывает state в `redirectRules[].redirect`, связывает
   его digest с Secure/HttpOnly/host-only cookie `__Host-minio-sso-browser`.
 - `POST /api/v1/login/oauth2/auth`: проверяет точный Origin, cookie, state, TTL
   10 минут и атомарный однократный consume; только затем восстанавливает исходный
   Console state и пересылает code. Не `/authcallback` (это несуществующий route).
-- `POST /api/v1/login`: сохраняет native emergency credential login с проверкой
-  same-origin. Успешные cookies/204 сохраняются, cookies ограничиваются текущим
-  host и Secure. GET `/oauth_callback` обслуживает прежний Console frontend.
+- `POST /api/v1/login`: компонент поддерживает same-origin proxy для совместимости,
+  но production router обходит Auth и направляет этот метод в Console независимо.
+  Router проверяет Origin и добавляет Secure к backend cookies, сохраняя 204/body.
+  GET `/oauth_callback` обслуживает прежний Console frontend.
+
+Если guard недоступен, **только GET initialization** может получить статический
+200 JSON `{loginStrategy:"form",redirectRules:[],animatedLogin:true,isK8S:true}`
+без upstream state/redirect URL. OAuth callback всегда fail-closed; native POST
+не использует этот fallback. `/login` показывает native форму при обеих стратегиях
+`form`/`redirect`; SSO выбирается отдельно, специальный URL-параметр не нужен.
 
 Code, пароли и browser cookie не записываются в БД; сохраняются только digests,
 исходный Console state и timestamps. Истёкшие записи удаляются при новом login.
