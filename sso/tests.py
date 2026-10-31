@@ -82,6 +82,7 @@ class AccessTests(SSOFixture):
                 "gitlab": False,
                 "minio": False,
                 "jenkins": False,
+                "monitor": False,
             },
         )
         self.assertTrue(all(type(value) is bool for value in data["services"].values()))
@@ -94,6 +95,63 @@ class AccessTests(SSOFixture):
                 type(value["enabled"]) is bool and isinstance(value["url"], str)
                 for value in services.values()
             )
+        )
+
+
+class MonitorAccessTests(SSOFixture):
+    def test_all_active_staff_without_native_identity_or_group_are_allowed(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        self.user.groups.clear()
+        self.identity.delete()
+        services = services_for(self.user)
+        self.assertEqual(
+            services["monitor"],
+            {"enabled": True, "url": "https://monitor.i3alumba.ru"},
+        )
+        self.assertFalse(
+            any(v["enabled"] for k, v in services.items() if k != "monitor")
+        )
+        self.assertFalse(Service.objects.filter(slug="monitor").exists())
+
+    def test_nonstaff_inactive_and_anonymous_are_denied(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        self.assertFalse(services_for(None)["monitor"]["enabled"])
+        self.assertFalse(services_for(AnonymousUser())["monitor"]["enabled"])
+        for active, staff, superuser in [
+            (True, False, False),
+            (True, False, True),
+            (False, True, True),
+        ]:
+            with self.subTest(active=active, staff=staff, superuser=superuser):
+                self.user.is_active = active
+                self.user.is_staff = staff
+                self.user.is_superuser = superuser
+                self.assertFalse(services_for(self.user)["monitor"]["enabled"])
+
+    def test_staff_revocation_is_live_for_existing_jwt(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        jwt = str(RefreshToken.for_user(self.user).access_token)
+        headers = {"HTTP_AUTHORIZATION": f"Bearer {jwt}"}
+        self.assertTrue(
+            self.client.get("/api/access/", **headers).json()["services"]["monitor"][
+                "enabled"
+            ]
+        )
+        self.assertTrue(
+            self.client.get("/api/user/1/", **headers).json()["services"]["monitor"]
+        )
+        self.user.is_staff = False
+        self.user.save(update_fields=["is_staff"])
+        self.assertFalse(
+            self.client.get("/api/access/", **headers).json()["services"]["monitor"][
+                "enabled"
+            ]
+        )
+        self.assertFalse(
+            self.client.get("/api/user/1/", **headers).json()["services"]["monitor"]
         )
 
 
@@ -238,6 +296,34 @@ class SessionTests(SSOFixture):
                 content_type="application/json",
                 HTTP_X_CSRFTOKEN=self.csrf(),
                 HTTP_ORIGIN="https://evil.example",
+            ).status_code,
+            403,
+        )
+
+    def test_monitor_origin_session_bridge_keeps_csrf_and_cookie_boundaries(self):
+        origin = "https://monitor.i3alumba.ru"
+        self.client.force_login(self.user)
+        response = self.client.get("/api/session/", HTTP_ORIGIN=origin)
+        self.assertEqual(response["Access-Control-Allow-Origin"], origin)
+        self.assertEqual(response["Access-Control-Allow-Credentials"], "true")
+        self.assertFalse(response.cookies[settings.CSRF_COOKIE_NAME]["domain"])
+        self.assertTrue(response.cookies[settings.CSRF_COOKIE_NAME]["httponly"])
+        self.assertEqual(
+            self.client.post("/api/session/token/", HTTP_ORIGIN=origin).status_code,
+            403,
+        )
+        csrf = response.json()["csrfToken"]
+        self.assertEqual(
+            self.client.post(
+                "/api/session/token/", HTTP_ORIGIN=origin, HTTP_X_CSRFTOKEN=csrf
+            ).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.post(
+                "/api/session/token/",
+                HTTP_ORIGIN="https://monitor.evil.example",
+                HTTP_X_CSRFTOKEN=csrf,
             ).status_code,
             403,
         )
