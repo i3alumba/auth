@@ -6,6 +6,7 @@ PORTAL_URLS = {
     "gitlab": "https://gitlab.i3alumba.ru",
     "minio": "https://minio.i3alumba.ru",
     "jenkins": "https://jenkins.i3alumba.ru",
+    "monitor": "https://monitor.i3alumba.ru",
 }
 
 
@@ -19,7 +20,19 @@ def identity_for(user, service):
 
 def services_for(user):
     services = {s.slug: s for s in Service.objects.all()}
+    # Monitor follows Django admin eligibility, not a native service account.
+    # Evaluate current flags each request; existing services keep their gates.
+    monitor_allowed = bool(
+        user and user.is_authenticated and user.is_active and user.is_staff
+    )
     return {
-        slug: {"enabled": bool(identity_for(user, services.get(slug))), "url": url}
+        slug: {
+            "enabled": (
+                monitor_allowed
+                if slug == "monitor"
+                else bool(identity_for(user, services.get(slug)))
+            ),
+            "url": url,
+        }
         for slug, url in PORTAL_URLS.items()
     }
