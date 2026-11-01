@@ -1,7 +1,43 @@
+{% load static %}
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Sign in</title></head>
-<body><h1>Sign in</h1>{% if error %}<p role="alert">{{ error }}</p>{% endif %}
-<form method="post">{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
-<label>Username <input name="username" maxlength="150" autocomplete="username" required></label>
-<label>Password <input type="password" name="password" autocomplete="current-password" required></label>
-<button type="submit">Sign in</button></form></body></html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign in · i3alumba Auth</title>
+    <link rel="stylesheet" href="{% static 'sso/ui/login.css' %}" />
+    <script type="module" src="{% static 'sso/ui/login.js' %}"></script>
+  </head>
+  <body>
+    <div id="login-ui"></div>
+    <main id="native-login">
+      <h1>Sign in</h1>
+      {% if error %}
+      <p role="alert">{{ error }}</p>
+      {% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}" />
+        <label
+          >Username
+          <input
+            name="username"
+            maxlength="150"
+            autocomplete="username"
+            required
+        /></label>
+        <label
+          >Password
+          <input
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            required
+        /></label>
+        <div id="login-submit">
+          <button class="fallback-submit" type="submit">Sign in</button>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>
