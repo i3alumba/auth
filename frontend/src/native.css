@@ -1,0 +1,35 @@
+#native-login h1 {
+  font-size: 1.75rem;
+  margin: 0 0 1.5rem;
+}
+#native-login form {
+  display: grid;
+  gap: 1.5rem;
+}
+#native-login label {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+#native-login input:not([type="hidden"]) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 14px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--mui-palette-divider, #53647b);
+  border-radius: 12px;
+}
+#native-login input:focus-visible {
+  outline: 2px solid var(--mui-palette-primary-main, #2563eb);
+  outline-offset: 2px;
+}
+#native-login [role="alert"] {
+  color: var(--mui-palette-error-main, #b91c1c);
+}
+#native-login.enhanced .fallback-submit {
+  display: none;
+}

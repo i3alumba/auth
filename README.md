@@ -324,3 +324,44 @@ GitLab/Synapse binding и старые сессии, Jenkins plugins/recovery, P
 SSH/PAT, STS или все SimpleJWT access tokens. Внешние consumers обязаны отдельно
 проверять свой entitlement и audience. Ротация RSA требует отдельного плана overlap
 ключей; этот компонент не генерирует production keys и не публикует private keys.
+
+## Native login UI
+
+Only the custom `/sso/login/` template is enhanced by self-hosted React/TypeScript
+and MUI. Django still owns the original POST form, CSRF, validated `next`, error
+messages, credential limits and rate limiting. The existing DOM form is moved,
+not recreated; there is no login fetch/API or credential storage. With JavaScript
+or the compiled module unavailable, the native form and submit button still work.
+Django admin and vendor templates are unchanged.
+
+```sh
+cd frontend
+npm ci
+npm run build
+npm run test:theme # isolated synthetic form/static server; Chromium required
+# Override Chromium location with CHROMIUM_PATH if necessary.
+```
+
+Build before local Django static collection. Vite emits fixed
+`sso/static/sso/ui/login.js` and `login.css`; generated files are ignored by Git.
+Docker uses an immutable Node 22 build-only stage and copies those assets before
+existing `collectstatic`. Python/Gunicorn runtime, Poetry lock and startup command
+are unchanged; no Node server or external font/CDN is deployed. Existing static
+nginx must serve `/static/sso/ui/` from the collected static volume. Deploy JS,
+CSS and template together and invalidate any long-lived caches for these fixed
+names; do not use immutable cache headers for them.
+
+Theme sources in `frontend/src/ui/sharedTheme.ts` and `themeStorage.ts` are exact
+copies of the shared UI contract. Only the non-sensitive theme preference is
+shared across subdomains; authentication/session/CSRF cookies remain untouched.
+Dependencies match Dashboard's locked versions. `npm audit` currently flags Vite
+7.0.3 development-server vulnerabilities; this project only invokes `vite build`
+and uses a separate synthetic browser-test server. Do not expose a Vite dev server;
+a coordinated tooling update is outside this UI change.
+
+Release is parent/operator-owned: before any restart obtain a fresh Auth/PostgreSQL
+backup and validate the bounded Auth+PostgreSQL restart dependency and restore plan.
+The existing container entrypoint runs migrations, so do not start a production
+container as a build check. No backup, restart or deployment is performed by these
+tests. PostgreSQL-only concurrency and production proxy/static/cookie integration
+remain separate release gates.

@@ -1,3 +1,11 @@
+FROM node:22-bookworm-slim@sha256:9f0dde62d10e7ff7a310ecaebd66225f6b46c17e6cb778449a77b05d3541bea2 AS ui-builder
+
+WORKDIR /ui
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.13.18-slim AS builder
 
 ENV PYTHONUNBUFFERED=1 \
@@ -39,6 +47,7 @@ COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY . .
+COPY --from=ui-builder /sso/static/sso/ui /app/sso/static/sso/ui
 
 RUN python manage.py collectstatic --noinput
 
