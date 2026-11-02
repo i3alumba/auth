@@ -63,8 +63,9 @@ ClusterIP и доверенный Traefik, который перезаписыв
 Session/CSRF cookies: host-only, HttpOnly, SameSite=Lax, Secure и с префиксом
 `__Host-` вне debug (защита от domain-cookie tossing соседними сервисами). Cookies
 авторизации не расширяются на весь домен. Credentialed CORS и CSRF allowlist:
-только `https://main.i3alumba.ru`, `https://auth.i3alumba.ru` и
-`https://monitor.i3alumba.ru`, без wildcard.
+только `https://main.i3alumba.ru`, `https://auth.i3alumba.ru`,
+`https://monitor.i3alumba.ru` и `https://hosting.i3alumba.ru`, без wildcard.
+Гостевые `*.hosting.i3alumba.ru` в CORS/CSRF allowlist не входят.
 
 ### Guard для legacy MinIO Console
 
@@ -117,9 +118,10 @@ Auth superuser не обходит проверку. Старые группы/I
 Drive=2, Minio=3, Gitlab=4, Matrix=5. `service_<slug>` — производный OIDC claim,
 не новая группа/копия entitlement.
 
-Исключение — новый `monitor`: доступен всем аутентифицированным активным
-пользователям с `is_staff=true`, как Django admin. Группа, `ServiceIdentity` и
-OIDC client для него не создаются; `is_superuser=true` без `is_staff` не даёт
+Исключения — `monitor` и `hosting`: доступны аутентифицированным активным
+пользователям с `is_staff=true`, как Django admin. Hosting имеет URL
+`https://hosting.i3alumba.ru` и обычную карточку в основной сетке Dashboard. Группы, `ServiceIdentity` и
+OIDC clients для них не создаются; `is_superuser=true` без `is_staff` не даёт
 доступ. `/api/access/` и boolean map `/api/user/` вычисляют право заново при каждом
 запросе: снятие `is_staff` действует и для ранее выданного JWT. Старые сервисы
 по-прежнему требуют группу **и** явную identity, без обхода для администраторов.
@@ -136,13 +138,14 @@ JWT-authenticated `GET /api/access/`:
     "gitlab": { "enabled": false, "url": "https://gitlab.i3alumba.ru" },
     "minio": { "enabled": false, "url": "https://minio.i3alumba.ru" },
     "jenkins": { "enabled": false, "url": "https://jenkins.i3alumba.ru" },
-    "monitor": { "enabled": false, "url": "https://monitor.i3alumba.ru" }
+    "monitor": { "enabled": false, "url": "https://monitor.i3alumba.ru" },
+    "hosting": { "enabled": false, "url": "https://hosting.i3alumba.ru" }
   }
 }
 ```
 
 В `/api/user/` и `/api/user/{id}/` добавлена **boolean map**
-`services: {drive:false,matrix:true,gitlab:false,minio:false,jenkins:false,monitor:false}`,
+`services: {drive:false,matrix:true,gitlab:false,minio:false,jenkins:false,monitor:false,hosting:false}`,
 без объектов `{enabled,url}`: Go consumer требует точный bool. `/api/access/`
 сохраняет object map из примера выше. В user serializer `id`, username, email,
 first_name, last_name и исходные groups `{id,name}` сохранены.

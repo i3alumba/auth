@@ -83,6 +83,7 @@ class AccessTests(SSOFixture):
                 "minio": False,
                 "jenkins": False,
                 "monitor": False,
+                "hosting": False,
             },
         )
         self.assertTrue(all(type(value) is bool for value in data["services"].values()))
@@ -110,7 +111,11 @@ class MonitorAccessTests(SSOFixture):
             {"enabled": True, "url": "https://monitor.i3alumba.ru"},
         )
         self.assertFalse(
-            any(v["enabled"] for k, v in services.items() if k != "monitor")
+            any(
+                v["enabled"]
+                for k, v in services.items()
+                if k not in {"monitor", "hosting"}
+            )
         )
         self.assertFalse(Service.objects.filter(slug="monitor").exists())
 
@@ -152,6 +157,56 @@ class MonitorAccessTests(SSOFixture):
         )
         self.assertFalse(
             self.client.get("/api/user/1/", **headers).json()["services"]["monitor"]
+        )
+
+
+class HostingAccessTests(SSOFixture):
+    def test_hosting_is_staff_only_without_native_group_or_identity(self):
+        self.user.groups.clear()
+        self.identity.delete()
+        for active, staff, superuser, allowed in [
+            (True, True, False, True),
+            (True, False, True, False),
+            (False, True, True, False),
+        ]:
+            with self.subTest(active=active, staff=staff, superuser=superuser):
+                self.user.is_active = active
+                self.user.is_staff = staff
+                self.user.is_superuser = superuser
+                self.assertEqual(
+                    services_for(self.user)["hosting"],
+                    {"enabled": allowed, "url": "https://hosting.i3alumba.ru"},
+                )
+        self.assertFalse(Service.objects.filter(slug="hosting").exists())
+        self.assertFalse(services_for(None)["hosting"]["enabled"])
+
+    def test_hosting_tile_grant_revokes_with_same_bearer(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        headers = {
+            "HTTP_AUTHORIZATION": f"Bearer {RefreshToken.for_user(self.user).access_token}"
+        }
+        self.assertIs(
+            self.client.get("/api/access/", **headers).json()["services"]["hosting"][
+                "enabled"
+            ],
+            True,
+        )
+        self.assertIs(
+            self.client.get("/api/user/1/", **headers).json()["services"]["hosting"],
+            True,
+        )
+        self.user.is_staff = False
+        self.user.save(update_fields=["is_staff"])
+        self.assertIs(
+            self.client.get("/api/access/", **headers).json()["services"]["hosting"][
+                "enabled"
+            ],
+            False,
+        )
+        self.assertIs(
+            self.client.get("/api/user/1/", **headers).json()["services"]["hosting"],
+            False,
         )
 
 
@@ -301,7 +356,16 @@ class SessionTests(SSOFixture):
         )
 
     def test_monitor_origin_session_bridge_keeps_csrf_and_cookie_boundaries(self):
-        origin = "https://monitor.i3alumba.ru"
+        self.check_service_origin(
+            "https://monitor.i3alumba.ru", "https://monitor.evil.example"
+        )
+
+    def test_hosting_origin_session_bridge_keeps_csrf_and_guest_boundaries(self):
+        self.check_service_origin(
+            "https://hosting.i3alumba.ru", "https://mc.hosting.i3alumba.ru"
+        )
+
+    def check_service_origin(self, origin, rejected_origin):
         self.client.force_login(self.user)
         response = self.client.get("/api/session/", HTTP_ORIGIN=origin)
         self.assertEqual(response["Access-Control-Allow-Origin"], origin)
@@ -322,7 +386,7 @@ class SessionTests(SSOFixture):
         self.assertEqual(
             self.client.post(
                 "/api/session/token/",
-                HTTP_ORIGIN="https://monitor.evil.example",
+                HTTP_ORIGIN=rejected_origin,
                 HTTP_X_CSRFTOKEN=csrf,
             ).status_code,
             403,
