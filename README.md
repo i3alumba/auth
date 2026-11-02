@@ -146,6 +146,11 @@ JWT-authenticated `GET /api/access/`:
 без объектов `{enabled,url}`: Go consumer требует точный bool. `/api/access/`
 сохраняет object map из примера выше. В user serializer `id`, username, email,
 first_name, last_name и исходные groups `{id,name}` сохранены.
+Self-filtered `GET /api/user/` сохраняет список ровно текущего пользователя.
+Read-only boolean `is_active` и `is_staff` берутся из актуальной записи Django,
+а не из JWT claims; снятие staff видно с тем же bearer без повторного входа.
+Эти поля не дают права менять роли через API. Контейнерный controller проверяет
+точные boolean-флаги и отказывает при пустом/неоднозначном ответе Auth.
 
 Browser API (каждый ответ `no-store`):
 
