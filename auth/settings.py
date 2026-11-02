@@ -182,6 +182,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://main.i3alumba.ru",
     "https://auth.i3alumba.ru",
     "https://monitor.i3alumba.ru",
+    "https://hosting.i3alumba.ru",
 ]
 CORS_ALLOWED_ORIGINS = CSRF_TRUSTED_ORIGINS
 CORS_ALLOW_ALL_ORIGINS = False
