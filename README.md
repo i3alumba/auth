@@ -64,7 +64,8 @@ Session/CSRF cookies: host-only, HttpOnly, SameSite=Lax, Secure и с префи
 `__Host-` вне debug (защита от domain-cookie tossing соседними сервисами). Cookies
 авторизации не расширяются на весь домен. Credentialed CORS и CSRF allowlist:
 только `https://main.i3alumba.ru`, `https://auth.i3alumba.ru`,
-`https://monitor.i3alumba.ru` и `https://hosting.i3alumba.ru`, без wildcard.
+`https://monitor.i3alumba.ru`, `https://hosting.i3alumba.ru` и
+`https://users.i3alumba.ru`, без wildcard.
 Гостевые `*.hosting.i3alumba.ru` в CORS/CSRF allowlist не входят.
 
 ### Guard для legacy MinIO Console
@@ -127,6 +128,10 @@ OIDC clients для них не создаются; `is_superuser=true` без `
 по-прежнему требуют группу **и** явную identity, без обхода для администраторов.
 Monitor обязан проверять точный boolean `services.monitor` сервером при каждом
 запросе данных; карточка Dashboard сама по себе не является защитой.
+Подготовленный user-admin сохраняет отдельные preferences при явном изменении
+прав: Monitor может быть разрешён без staff, Hosting — только после consumer
+readiness. Нетронутые legacy-записи массово не нормализуются; административная
+панель требует active superuser, не просто сервисный grant.
 
 JWT-authenticated `GET /api/access/`:
 
@@ -152,8 +157,13 @@ first_name, last_name и исходные groups `{id,name}` сохранены.
 Self-filtered `GET /api/user/` сохраняет список ровно текущего пользователя.
 Read-only boolean `is_active` и `is_staff` берутся из актуальной записи Django,
 а не из JWT claims; снятие staff видно с тем же bearer без повторного входа.
-Эти поля не дают права менять роли через API. Контейнерный controller проверяет
-точные boolean-флаги и отказывает при пустом/неоднозначном ответе Auth.
+Эти поля не дают права менять роли через API. Подготовленный контейнерный controller проверяет
+точные `is_active is True` и `services.hosting is True`, без staff/superuser
+fallback, и отказывает при пустом/неоднозначном ответе Auth. До включения
+`USER_ADMIN_HOSTING_GRANTS_READY` право нетронутых пользователей остаётся
+staff-derived. Новый consumer нужно выпустить и проверить первым; выключение
+readiness не отменяет уже записанный explicit deny. Native agents/Incus от этого
+source-контракта не меняются.
 
 Browser API (каждый ответ `no-store`):
 
@@ -332,6 +342,23 @@ GitLab/Synapse binding и старые сессии, Jenkins plugins/recovery, P
 SSH/PAT, STS или все SimpleJWT access tokens. Внешние consumers обязаны отдельно
 проверять свой entitlement и audience. Ротация RSA требует отдельного плана overlap
 ключей; этот компонент не генерирует production keys и не публикует private keys.
+
+## User administration (disabled source preparation)
+
+The `/api/user-admin/` namespace and Dashboard matrix are prepared for
+`https://users.i3alumba.ru`. `USER_ADMIN_API_ENABLED` defaults to false; only an
+explicit `true`, `1` or `yes` enables the central API and portal card. Activation
+requires separate release approval, a fresh Auth/PostgreSQL backup and baseline.
+The exact Users origin is allowed for the host-only central session bridge.
+
+`USER_ADMIN_NATIVE_EXECUTION_ENABLED` is always false in the web process, even
+if an environment variable requests otherwise. No native credentials, adapters
+or worker are installed by enabling the central API. Hosting permission edits
+remain disabled until the consumer contract is coordinated. See
+`user_admin/README.md` and parent `docs/USER-ADMINISTRATION.md` for limitations.
+The separate command/settings and strict private-file configuration are documented
+in `user_admin/WORKER.md`. It defaults to read-only preview; all native profiles
+retain activation blockers even with a worker opt-in. This is not a worker rollout.
 
 ## Native login UI
 

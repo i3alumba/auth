@@ -1,3 +1,6 @@
+from django.conf import settings
+from user_admin.grants import portal_allowed
+
 from .models import Service, ServiceIdentity
 
 PORTAL_URLS = {
@@ -8,6 +11,7 @@ PORTAL_URLS = {
     "jenkins": "https://jenkins.i3alumba.ru",
     "monitor": "https://monitor.i3alumba.ru",
     "hosting": "https://hosting.i3alumba.ru",
+    "users": "https://users.i3alumba.ru",
 }
 
 
@@ -21,17 +25,23 @@ def identity_for(user, service):
 
 def services_for(user):
     services = {s.slug: s for s in Service.objects.all()}
-    # Staff services follow Django admin eligibility, not native identities.
-    # Evaluate current flags each request; existing services keep their gates.
-    staff_allowed = bool(
-        user and user.is_authenticated and user.is_active and user.is_staff
+    users_allowed = bool(
+        getattr(settings, "USER_ADMIN_API_ENABLED", False)
+        and user
+        and user.is_authenticated
+        and user.is_active
+        and user.is_superuser
     )
     return {
         slug: {
             "enabled": (
-                staff_allowed
-                if slug in {"monitor", "hosting"}
-                else bool(identity_for(user, services.get(slug)))
+                users_allowed
+                if slug == "users"
+                else (
+                    portal_allowed(user, slug)
+                    if slug in {"monitor", "hosting"}
+                    else bool(identity_for(user, services.get(slug)))
+                )
             ),
             "url": url,
         }

@@ -34,6 +34,7 @@ ALLOWED_HOSTS = [
     "95.165.90.137",
     "auth",
     "auth.i3alumba.ru",
+    "users.i3alumba.ru",
 ]
 
 
@@ -54,6 +55,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "oauth2_provider",
     "sso",
+    "user_admin",
 ]
 
 MIDDLEWARE = [
@@ -62,7 +64,8 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "user_admin.authentication.CompatibleAuthenticationMiddleware",
+    "user_admin.authentication.SessionEpochMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -153,12 +156,14 @@ STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles", "static")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+AUTHENTICATION_BACKENDS = ["user_admin.authentication.EpochModelBackend"]
+
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "user_admin.authentication.EpochJWTAuthentication",
     ],
 }
 
@@ -183,7 +188,22 @@ CSRF_TRUSTED_ORIGINS = [
     "https://auth.i3alumba.ru",
     "https://monitor.i3alumba.ru",
     "https://hosting.i3alumba.ru",
+    "https://users.i3alumba.ru",
 ]
+# Native execution is never enabled in the Auth web process, even by an env flag.
+# The central API has a separate, default-off release switch; worker rollout and
+# credentials are separate. Preparing this switch does not authorize activation.
+USER_ADMIN_NATIVE_EXECUTION_ENABLED = False
+USER_ADMIN_API_ENABLED = os.environ.get("USER_ADMIN_API_ENABLED", "false").lower() in {
+    "true",
+    "1",
+    "yes",
+}
+# Enable only AFTER deploying/verifying the controller's services.hosting gate.
+USER_ADMIN_HOSTING_GRANTS_READY = os.environ.get(
+    "USER_ADMIN_HOSTING_GRANTS_READY", "false"
+).lower() in {"true", "1", "yes"}
+
 CORS_ALLOWED_ORIGINS = CSRF_TRUSTED_ORIGINS
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True

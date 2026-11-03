@@ -20,6 +20,7 @@ from sso.sessions import native_login
 from django.contrib import admin
 from django.urls import include, path, re_path
 from sso.minio_guard import console_login
+from user_admin.passwords import own_password_change
 
 from api.urls import urlpatterns as api_urlpatterns
 
@@ -28,6 +29,7 @@ urlpatterns = [
     path("api/", include("sso.urls")),
     path("api/", include(api_urlpatterns)),
     path("sso/login/", native_login),
+    path("admin/password_change/", admin.site.admin_view(own_password_change)),
     path("admin/", admin.site.urls),
 ]
 
