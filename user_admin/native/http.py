@@ -1,4 +1,4 @@
-"""Small HTTPS-only vendor transport. No redirects, proxies, cookies or body logs.
+"""HTTPS by default; explicit fixed cluster HTTP only. No redirects/proxies/logs.
 
 Socket connect/TLS timeouts are bounded; DNS resolution remains a platform
 facility, not a claimed hard-deadline guarantee. Once connected, a deadline
@@ -16,6 +16,8 @@ import ssl
 import threading
 import time
 from urllib.parse import urlsplit
+
+from .endpoints import is_cluster_http_origin
 
 
 class NativeTransportError(Exception):
@@ -63,13 +65,24 @@ class NativeHTTP:
         context: ssl.SSLContext | None = None,
         timeout: float = 3,
         max_response: int = 1024 * 1024,
+        cluster_http_service: str = "",
     ):
         try:
+            if type(cluster_http_service) is not str:
+                raise ValueError
+            plain_http = cluster_http_service != ""
+            if plain_http and (
+                not is_cluster_http_origin(cluster_http_service, origin)
+                or context is not None
+            ):
+                raise ValueError
+            scheme = "http" if plain_http else "https"
+            default_port = 80 if plain_http else 443
             parsed = urlsplit(origin)
-            port = 443 if parsed.port is None else parsed.port
+            port = default_port if parsed.port is None else parsed.port
             host = parsed.hostname
             if (
-                parsed.scheme != "https"
+                parsed.scheme != scheme
                 or not host
                 or parsed.username is not None
                 or parsed.password is not None
@@ -90,15 +103,19 @@ class NativeHTTP:
             or not 0 < max_response <= 4 * 1024 * 1024
         ):
             raise ValueError("invalid_native_limits")
-        self.context = context if context is not None else ssl.create_default_context()
-        if (
-            not self.context.check_hostname
-            or self.context.verify_mode != ssl.CERT_REQUIRED
-        ):
-            raise ValueError("native_tls_verification_required")
-        self.host, self.port = host, port
+        self.context = None
+        if not plain_http:
+            self.context = (
+                context if context is not None else ssl.create_default_context()
+            )
+            if (
+                not self.context.check_hostname
+                or self.context.verify_mode != ssl.CERT_REQUIRED
+            ):
+                raise ValueError("native_tls_verification_required")
+        self.host, self.port, self.scheme = host, port, scheme
         bracketed = f"[{host}]" if ":" in host else host
-        self.authority = bracketed if port == 443 else f"{bracketed}:{port}"
+        self.authority = bracketed if port == default_port else f"{bracketed}:{port}"
         self.timeout, self.max_response = timeout, max_response
 
     def request(
@@ -143,9 +160,14 @@ class NativeHTTP:
                 raise ValueError("invalid_native_headers")
             safe_headers[key] = value
         safe_headers["Connection"] = "close"
-        conn = http.client.HTTPSConnection(
-            self.host, self.port, timeout=self.timeout, context=self.context
-        )
+        if self.scheme == "http":
+            conn = http.client.HTTPConnection(
+                self.host, self.port, timeout=self.timeout
+            )
+        else:
+            conn = http.client.HTTPSConnection(
+                self.host, self.port, timeout=self.timeout, context=self.context
+            )
         expired = threading.Event()
         timer = None
         deadline = time.monotonic() + self.timeout

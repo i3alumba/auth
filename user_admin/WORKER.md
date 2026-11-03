@@ -53,9 +53,36 @@ Use `examples/worker.json` as a **nonsecret** example. Replace `.invalid` origin
 only after separately verified deployment acceptance. `primary` must match the
 existing target instance. Configuration is strict JSON, at most 64 KiB/eight
 instances: no duplicate/unknown keys, literal credentials, imports, custom headers,
-actions, evidence or execution bypasses. Origins must be fixed verified HTTPS,
-without credentials, path prefixes, queries or fragments. No insecure TLS/proxy
-mode is available.
+actions, evidence or execution bypasses. Origins default to fixed verified HTTPS,
+without credentials, path prefixes, queries or fragments. HTTPS verification cannot
+be disabled, and no proxy or automatic transport downgrade is available.
+
+### Explicit operator-approved private HTTP
+
+The operator chose plaintext HTTP for the existing native Kubernetes Services,
+not new TLS proxies or GitLab/Synapse/MinIO Pod restarts. Set the per-instance
+`transport` to `cluster_http` explicitly. This mode is accepted only for instance
+`primary` and the exact service-specific origins below:
+
+| Service | Exact HTTP origin                                   |
+| ------- | --------------------------------------------------- |
+| GitLab  | `http://gitlab.public-page.svc.cluster.local`       |
+| Matrix  | `http://synapse.public-page.svc.cluster.local:8008` |
+| MinIO   | `http://minio.public-page.svc.cluster.local:9000`   |
+
+`examples/worker-cluster-http.json` documents the nonsecret configuration; its
+profiles remain activation-blocked. Service identity, scheme, canonical spelling
+and port must match exactly. Short aliases, IP literals, public hosts, alternative
+ports, prefixes, redirects and CA options are not accepted in this mode. In
+particular, MinIO Console port 9001 is not the native S3/admin origin. Matrix's
+existing server name is `i3alumba.ru`, independently of its Service DNS name.
+
+**Native admin credentials and requests are unencrypted inside the cluster.** The
+explicit origin allowlist is not encryption, DNS authentication or a claim of
+network-policy enforcement. Preserve the cluster trust boundary; expose no new
+public admin/S3 route. HTTP does not relax receipt/provenance checks, private-file
+validation, queue fences or any independent activation gate. Other instances and
+all browser/issuer connections retain their existing HTTPS requirements.
 
 `private_root` must be an absolute, privately owned directory (0700); each named
 credential is a regular, owner/root-owned private file (0600/0400), at most 16 KiB.
@@ -195,8 +222,8 @@ Auth uses `Recreate`; adding a sidecar restarts PostgreSQL and reruns existing i
 migration/bootstrap. A staging init can block startup and a crash-looping worker
 can impair Pod readiness even without probes. Default dry-run does not make that
 rollout harmless. A future opt-in launch needs a fresh protected backup, original
-identity/data baseline, release approval, verified private HTTPS native API origins
-and worker-only credential delivery. Do not expose admin/S3 routes publicly merely
+identity/data baseline, release approval, verified exact native API origins using
+the explicitly chosen transport and worker-only credential delivery. Do not expose admin/S3 routes publicly merely
 to satisfy the worker's strict TLS transport. No new DB Service is permitted.
 
 Stopping the worker does not undo account/bucket creation. Never delete identities,

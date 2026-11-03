@@ -97,13 +97,20 @@ def gitlab_profile(operation):
 def make_adapter(instance, secrets, operation):
     if instance.service not in {"gitlab", "matrix", "minio"}:
         raise WorkerError("service_excluded")
-    context = ssl.create_default_context()
-    if "ca_pem" in secrets:
-        try:
-            context.load_verify_locations(cadata=secrets["ca_pem"])
-        except (ValueError, ssl.SSLError):
-            raise WorkerError("invalid_worker_ca") from None
-    client = NativeHTTP(instance.origin, context=context)
+    if instance.transport == "cluster_http":
+        if instance.instance != "primary" or instance.ca_file or "ca_pem" in secrets:
+            raise WorkerError("invalid_worker_transport")
+        client = NativeHTTP(instance.origin, cluster_http_service=instance.service)
+    elif instance.transport == "https":
+        context = ssl.create_default_context()
+        if "ca_pem" in secrets:
+            try:
+                context.load_verify_locations(cadata=secrets["ca_pem"])
+            except (ValueError, ssl.SSLError):
+                raise WorkerError("invalid_worker_ca") from None
+        client = NativeHTTP(instance.origin, context=context)
+    else:
+        raise WorkerError("invalid_worker_transport")
     common = {
         "client": client,
         "instance": instance.instance,
