@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from urllib.parse import urlsplit
 
+from .native.endpoints import is_cluster_http_origin
 from .worker_profiles import PROFILES
 
 
@@ -26,6 +27,7 @@ class InstanceConfig:
     credentials: tuple[tuple[str, str], ...] = field(repr=False)
     server_name: str = ""
     ca_file: str = ""
+    transport: str = "https"
 
 
 @dataclass(frozen=True)
@@ -163,7 +165,7 @@ def load_config(path):
             _keys(
                 item,
                 {"service", "instance", "origin", "acceptance_profile", "credentials"},
-                {"server_name", "ca_file"},
+                {"server_name", "ca_file", "transport"},
             )
             service = item["service"]
             if type(service) is not str or service not in CREDENTIALS:
@@ -190,9 +192,17 @@ def load_config(path):
                 or any(ord(c) <= 32 or ord(c) == 127 for c in origin)
             ):
                 raise WorkerError()
+            transport = item.get("transport", "https")
+            if type(transport) is not str or transport not in {"https", "cluster_http"}:
+                raise WorkerError("invalid_worker_transport")
+            if transport == "cluster_http" and (
+                item["instance"] != "primary"
+                or not is_cluster_http_origin(service, origin)
+            ):
+                raise WorkerError("fixed_cluster_http_origin_required")
             url = urlsplit(origin)
             if (
-                url.scheme != "https"
+                url.scheme != ("http" if transport == "cluster_http" else "https")
                 or not url.hostname
                 or not re.fullmatch(r"[a-zA-Z0-9.:-]+", url.hostname)
                 or url.username is not None
@@ -200,7 +210,13 @@ def load_config(path):
                 or url.path not in {"", "/"}
                 or url.query
                 or url.fragment
-                or not 1 <= (443 if url.port is None else url.port) <= 65535
+                or not 1
+                <= (
+                    (80 if transport == "cluster_http" else 443)
+                    if url.port is None
+                    else url.port
+                )
+                <= 65535
             ):
                 raise WorkerError("fixed_https_origin_required")
             credentials = item["credentials"]
@@ -225,8 +241,10 @@ def load_config(path):
             ):
                 raise WorkerError()
             ca_file = item.get("ca_file", "")
-            if type(ca_file) is not str or (
-                ca_file and not FILENAME.fullmatch(ca_file)
+            if (
+                type(ca_file) is not str
+                or (ca_file and not FILENAME.fullmatch(ca_file))
+                or (transport == "cluster_http" and ca_file)
             ):
                 raise WorkerError()
             instances.append(
@@ -238,6 +256,7 @@ def load_config(path):
                     tuple(sorted(credentials.items())),
                     server,
                     ca_file,
+                    transport,
                 )
             )
         return WorkerConfig(data["private_root"], tuple(instances), execution_scope)

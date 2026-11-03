@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "private_root": "/run/user-admin-private",
+  "execution_scope": "provision_only",
+  "instances": [
+    {
+      "service": "gitlab",
+      "instance": "primary",
+      "origin": "http://gitlab.public-page.svc.cluster.local",
+      "transport": "cluster_http",
+      "acceptance_profile": "gitlab-18.1.0-ce-ban-v1",
+      "credentials": { "token_file": "gitlab-token" }
+    },
+    {
+      "service": "matrix",
+      "instance": "primary",
+      "origin": "http://synapse.public-page.svc.cluster.local:8008",
+      "transport": "cluster_http",
+      "acceptance_profile": "synapse-1.164.1-lock-v1",
+      "server_name": "i3alumba.ru",
+      "credentials": {
+        "token_file": "matrix-token",
+        "registration_secret_file": "matrix-registration"
+      }
+    },
+    {
+      "service": "minio",
+      "instance": "primary",
+      "origin": "http://minio.public-page.svc.cluster.local:9000",
+      "transport": "cluster_http",
+      "acceptance_profile": "minio-2023-05-18-owned-s3-v1",
+      "credentials": {
+        "access_key_file": "minio-access",
+        "secret_key_file": "minio-secret"
+      }
+    }
+  ]
+}
