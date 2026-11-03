@@ -504,8 +504,9 @@ def public_command_checks() -> None:
     def preview(*args, **kwargs):
         return run_pass(*args, **kwargs, factory=forbidden_factory)
 
-    with patch(prefix + "load_private_snapshot") as loader, patch(
-        prefix + "run_pass", side_effect=preview
+    with (
+        patch(prefix + "load_private_snapshot") as loader,
+        patch(prefix + "run_pass", side_effect=preview),
     ):
         with CaptureQueriesContext(connection) as queries:
             call_command(

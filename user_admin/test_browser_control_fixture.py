@@ -24,7 +24,7 @@ class BrowserControlFixtureTests(SimpleTestCase):
         reason="capability_unconfirmed",
         observed="blocked",
         identity=1,
-        target_observed=None
+        target_observed=None,
     ):
         operation = SimpleNamespace(
             action=action,
@@ -54,11 +54,15 @@ class BrowserControlFixtureTests(SimpleTestCase):
             ):
                 self.assertEqual(fixture_service(), expected)
         for value in [True, None, [], "../matrix", "jenkins", "other"]:
-            with self.subTest(value=value), patch(
-                "user_admin.vendor_fixtures.browser_control.inputs",
-                return_value={"service": value},
-            ), self.assertRaisesMessage(
-                RuntimeError, "browser_fixture_service_invalid"
+            with (
+                self.subTest(value=value),
+                patch(
+                    "user_admin.vendor_fixtures.browser_control.inputs",
+                    return_value={"service": value},
+                ),
+                self.assertRaisesMessage(
+                    RuntimeError, "browser_fixture_service_invalid"
+                ),
             ):
                 fixture_service()
 
@@ -99,8 +103,11 @@ class BrowserControlFixtureTests(SimpleTestCase):
             "grant_revoked",
             "outcome_unknown",
         ]:
-            with self.subTest(reason=reason), self.assertRaisesMessage(
-                RuntimeError, "browser_fixture_native_outcome_unaccepted"
+            with (
+                self.subTest(reason=reason),
+                self.assertRaisesMessage(
+                    RuntimeError, "browser_fixture_native_outcome_unaccepted"
+                ),
             ):
                 self.outcome(reason=reason)
 
@@ -145,10 +152,10 @@ class BrowserControlFixtureTests(SimpleTestCase):
             self.outcome(action="create", observed="unbound", identity=None)
 
     def test_nonfixture_settings_stop_before_django_or_database(self):
-        with patch.dict(os.environ, {"DJANGO_SETTINGS_MODULE": "auth.settings"}), patch(
-            "django.setup"
-        ) as initialize, self.assertRaisesMessage(
-            RuntimeError, "browser_fixture_settings_required"
+        with (
+            patch.dict(os.environ, {"DJANGO_SETTINGS_MODULE": "auth.settings"}),
+            patch("django.setup") as initialize,
+            self.assertRaisesMessage(RuntimeError, "browser_fixture_settings_required"),
         ):
             setup()
         initialize.assert_not_called()

@@ -72,8 +72,9 @@ class MinioBrowserRouterFixtureTests(SimpleTestCase):
             "/%2561pi/v1/login",
         ]:
             for method in ["GET", "POST", "PUT", "OPTIONS"]:
-                with self.subTest(path=path, method=method), self.assertRaises(
-                    ValueError
+                with (
+                    self.subTest(path=path, method=method),
+                    self.assertRaises(ValueError),
                 ):
                     self.route(method, path, ORIGIN)
         for method in ["PUT", "HEAD", "OPTIONS", "DELETE"]:
@@ -197,11 +198,15 @@ class MinioBrowserRouterFixtureTests(SimpleTestCase):
             [("host", MINIO), ("cookie", "token=PUBLIC_SYNTHETIC_COOKIE")],
         )
         wire.read.return_value = b""
-        with patch(
-            "user_admin.vendor_fixtures.minio_browser_router.Wire", return_value=wire
-        ), patch(
-            "user_admin.vendor_fixtures.minio_browser_router.socket.create_connection"
-        ) as upstream:
+        with (
+            patch(
+                "user_admin.vendor_fixtures.minio_browser_router.Wire",
+                return_value=wire,
+            ),
+            patch(
+                "user_admin.vendor_fixtures.minio_browser_router.socket.create_connection"
+            ) as upstream,
+        ):
             handler.handle()
         upstream.assert_not_called()
         output = b"".join(call.args[0] for call in wire.send.call_args_list)

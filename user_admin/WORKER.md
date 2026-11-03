@@ -166,7 +166,7 @@ An Auth rollout restarts its PostgreSQL sidecar. Publication, private production
 credential delivery, runtime/network changes and rollout require separate explicit
 approval and a fresh protected backup/baseline. This command is not that approval.
 
-## Launch preparation: unresolved Kubernetes prerequisite
+## Launch preparation: synthetic staging verified, production gates open
 
 A future worker must share the existing Auth Pod's loopback database and exact
 Auth image, with an explicit management-command entrypoint, no migrations, no
@@ -178,12 +178,18 @@ Projected secrets/configuration are symlinks. Pin one projection generation and
 stage only explicit bounded keys into fresh UID-owned 0700 directories/0600 regular
 files. Mount the private child read-only via subPath beneath safe ancestors; rotate
 by restaging and restarting. Do not loosen the strict loader to accommodate symlinks.
-Nonroot emptyDir writeability and subPath ownership still require an isolated
-**Kubernetes** rehearsal: Docker staging is not kubelet evidence. The existing Auth
-manifest even documents a root-owned emptyDir issue. Do not compensate with root
-init, global fsGroup, capabilities or ownership changes on existing database PVCs.
-Until this prerequisite is verified, preparation remains **protocol-only**: no
-unproven worker manifest is attached to `k8s/base`.
+An authorized isolated **Kubernetes** rehearsal verified nonroot UID/GID 1000
+emptyDir staging and actual read-only directory/file subPaths with the real strict
+loader on alpha's cached Auth image. Run `1e58e24bd90e4d78916f5f131138c969`
+used only a synthetic ConfigMap, no production Secret/PVC, a deny-all network
+policy and bounded hardened containers. UID-preconditioned namespace deletion
+and final absence were verified. Do not repeat the completed rehearsal.
+
+This proves only that synthetic staging path on that node/image, not real Secret
+delivery, rotation, private native HTTPS or production activation. Do not compensate
+for future failures with root init, global fsGroup, capabilities or ownership
+changes on existing database PVCs. No production worker manifest is attached to
+`k8s/base`; source-controlled execution gates remain closed.
 
 Auth uses `Recreate`; adding a sidecar restarts PostgreSQL and reruns existing init
 migration/bootstrap. A staging init can block startup and a crash-looping worker

@@ -120,11 +120,15 @@ class BrowserRuntimeFixtureTests(SimpleTestCase):
             self.assertEqual(args, ["ldd", "/usr/bin/node"])
             return subprocess.CompletedProcess(args, code, stdout=stdout, stderr="")
 
-        with patch(
-            "user_admin.vendor_fixtures.browser_runtime.PUBLIC_BINARIES",
-            (Path("/usr/bin/node"),),
-        ), patch(
-            "user_admin.vendor_fixtures.browser_runtime.PUBLIC_LIBRARY_DIRECTORIES", ()
+        with (
+            patch(
+                "user_admin.vendor_fixtures.browser_runtime.PUBLIC_BINARIES",
+                (Path("/usr/bin/node"),),
+            ),
+            patch(
+                "user_admin.vendor_fixtures.browser_runtime.PUBLIC_LIBRARY_DIRECTORIES",
+                (),
+            ),
         ):
             return public_libraries(invoke=invoke)
 

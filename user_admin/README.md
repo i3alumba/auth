@@ -88,8 +88,8 @@ rollback, stale generations, revocation in flight, missing ownership, foreign
 blocks, unsupported create-only semantics, reservation retention, secret
 redaction and preservation of existing Auth data.
 
-The complete 340-test Auth suite passed without skips on an isolated local
-PostgreSQL 17.9 fixture; SQLite ran 340 tests with 13 PostgreSQL-only skips. Real
+The complete 353-test Auth suite passed without skips on an isolated local
+PostgreSQL 17.9 fixture; SQLite ran 353 tests with 13 PostgreSQL-only skips. Real
 multi-connection checks cover last-administrator removal, optimistic conflicts,
 credential issuance/revocation races, native create single-winner behavior and
 absence of DB locks during remote IO. Migration drift check passed. Legacy
