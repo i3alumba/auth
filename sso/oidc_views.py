@@ -6,6 +6,7 @@ from oauth2_provider.views import (
     AuthorizationView,
     ConnectDiscoveryInfoView,
     JwksInfoView,
+    TokenView,
 )
 
 from .validator import allowed
@@ -25,6 +26,17 @@ class ServiceAuthorizationView(AuthorizationView):
             if not allowed(request.user, client):
                 return HttpResponseForbidden("Service access denied")
         return super().dispatch(request, *args, **kwargs)
+
+
+class ServiceTokenView(TokenView):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        # OAuthLibCore directly converts a save-hook OAuth2Error into JSON bytes,
+        # but its exception headers omit the MIME type. Never return token errors
+        # as text/html (or a successful token response after failed persistence).
+        response["Content-Type"] = "application/json"
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 class ServiceDiscoveryView(ConnectDiscoveryInfoView):

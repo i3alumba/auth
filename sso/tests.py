@@ -84,6 +84,7 @@ class AccessTests(SSOFixture):
                 "jenkins": False,
                 "monitor": False,
                 "hosting": False,
+                "users": False,
             },
         )
         self.assertTrue(all(type(value) is bool for value in data["services"].values()))
@@ -363,6 +364,11 @@ class SessionTests(SSOFixture):
     def test_hosting_origin_session_bridge_keeps_csrf_and_guest_boundaries(self):
         self.check_service_origin(
             "https://hosting.i3alumba.ru", "https://mc.hosting.i3alumba.ru"
+        )
+
+    def test_users_origin_session_bridge_has_exact_csrf_cors_boundary(self):
+        self.check_service_origin(
+            "https://users.i3alumba.ru", "https://child.users.i3alumba.ru"
         )
 
     def check_service_origin(self, origin, rejected_origin):

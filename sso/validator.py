@@ -1,6 +1,11 @@
 from urllib.parse import urlsplit
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.db import transaction
+from oauthlib.oauth2 import InvalidGrantError
+
+from user_admin.authentication import credential_lock, current_epoch
 from oauth2_provider.oauth2_validators import OAuth2Validator
 
 from .access import identity_for
@@ -19,7 +24,12 @@ def service_for(client):
 
 
 def allowed(user, client):
-    return bool(identity_for(user, service_for(client)))
+    fresh = (
+        get_user_model().objects.filter(pk=user.pk, is_active=True).first()
+        if user is not None
+        else None
+    )
+    return bool(identity_for(fresh, service_for(client)))
 
 
 class SSOValidator(OAuth2Validator):
@@ -99,14 +109,50 @@ class SSOValidator(OAuth2Validator):
         )
 
     def validate_code(self, client_id, code, client, request, *args, **kwargs):
-        return super().validate_code(
-            client_id, code, client, request, *args, **kwargs
-        ) and allowed(request.user, client)
+        with transaction.atomic():
+            credential_lock()
+            valid = super().validate_code(
+                client_id, code, client, request, *args, **kwargs
+            ) and allowed(request.user, client)
+            if valid:
+                request._ua_token_epoch = current_epoch(request.user.pk)
+            return valid
 
     def validate_refresh_token(self, refresh_token, client, request, *args, **kwargs):
-        return super().validate_refresh_token(
-            refresh_token, client, request, *args, **kwargs
-        ) and allowed(request.user, client)
+        with transaction.atomic():
+            credential_lock()
+            valid = super().validate_refresh_token(
+                refresh_token, client, request, *args, **kwargs
+            ) and allowed(request.user, client)
+            if valid:
+                request._ua_token_epoch = current_epoch(request.user.pk)
+            return valid
+
+    def save_authorization_code(self, client_id, code, request, *args, **kwargs):
+        with transaction.atomic():
+            credential_lock()
+            epoch = getattr(request.user, "_ua_session_epoch", 0)
+            if (
+                type(epoch) is not int
+                or epoch != current_epoch(request.user.pk)
+                or not allowed(request.user, request.client)
+            ):
+                raise InvalidGrantError(description="Session revoked")
+            return super().save_authorization_code(
+                client_id, code, request, *args, **kwargs
+            )
+
+    def save_bearer_token(self, token, request, *args, **kwargs):
+        with transaction.atomic():
+            credential_lock()
+            epoch = getattr(request, "_ua_token_epoch", None)
+            if (
+                type(epoch) is not int
+                or epoch != current_epoch(request.user.pk)
+                or not allowed(request.user, request.client)
+            ):
+                raise InvalidGrantError(description="Credentials revoked")
+            return super().save_bearer_token(token, request, *args, **kwargs)
 
     def validate_bearer_token(self, token, scopes, request):
         return super().validate_bearer_token(token, scopes, request) and allowed(

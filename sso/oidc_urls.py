@@ -1,12 +1,17 @@
 from django.urls import path
 from oauth2_provider import views
 
-from .oidc_views import ServiceAuthorizationView, ServiceDiscoveryView, ServiceJwksView
+from .oidc_views import (
+    ServiceAuthorizationView,
+    ServiceDiscoveryView,
+    ServiceJwksView,
+    ServiceTokenView,
+)
 
 app_name = "oauth2_provider"
 urlpatterns = [
     path("authorize/", ServiceAuthorizationView.as_view(), name="authorize"),
-    path("token/", views.TokenView.as_view(), name="token"),
+    path("token/", ServiceTokenView.as_view(), name="token"),
     path("revoke_token/", views.RevokeTokenView.as_view(), name="revoke-token"),
     path("userinfo/", views.UserInfoView.as_view(), name="user-info"),
     path(
