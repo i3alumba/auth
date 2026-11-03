@@ -3,9 +3,14 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .sessions import consume_login_attempt
+from user_admin.authentication import issue_refresh
 
 
 class LimitedTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        return issue_refresh(user)
+
     def validate(self, attrs):
         username = attrs[self.username_field]
         if (

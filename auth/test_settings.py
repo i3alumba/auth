@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives.serialization import (
 SECRET_KEY = "isolated-test-secret-at-least-32-characters"
 DEBUG = True
 DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
-ALLOWED_HOSTS = ["testserver", "auth.i3alumba.ru"]
+ALLOWED_HOSTS = ["testserver", "auth.i3alumba.ru", "users.i3alumba.ru"]
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
 SSO_ENABLED = True

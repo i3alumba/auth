@@ -13,13 +13,16 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from rest_framework.exceptions import AuthenticationFailed
+
+from user_admin.authentication import EPOCH, issue_refresh
 
 from api.serializers import UserSerializer
 from .models import LoginAttempt
 
 
-def pair(user):
-    refresh = RefreshToken.for_user(user)
+def pair(user, session_epoch=None):
+    refresh = issue_refresh(user, session_epoch)
     return {"access": str(refresh.access_token), "refresh": str(refresh)}
 
 
@@ -85,7 +88,11 @@ def session_login(request):
         return JsonResponse({"detail": "Invalid credentials or rate limit"}, status=401)
     login(request, user)
     request.session.cycle_key()
-    return JsonResponse({**pair(user), "csrfToken": get_token(request)})
+    try:
+        tokens = pair(user, request.session.get(EPOCH, 0))
+    except AuthenticationFailed:
+        return JsonResponse({"detail": "Session revoked"}, status=401)
+    return JsonResponse({**tokens, "csrfToken": get_token(request)})
 
 
 @never_cache
@@ -94,7 +101,10 @@ def session_login(request):
 def session_token(request):
     if not request.user.is_authenticated or not request.user.is_active:
         return JsonResponse({"detail": "Session required"}, status=401)
-    return JsonResponse(pair(request.user))
+    try:
+        return JsonResponse(pair(request.user, request.session.get(EPOCH, 0)))
+    except AuthenticationFailed:
+        return JsonResponse({"detail": "Session revoked"}, status=401)
 
 
 @never_cache
