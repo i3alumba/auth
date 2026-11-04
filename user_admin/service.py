@@ -33,6 +33,10 @@ class ChangeError(Exception):
         super().__init__(code)
 
 
+def native_scheduling_enabled():
+    return getattr(settings, "USER_ADMIN_NATIVE_SCHEDULING_ENABLED", False) is True
+
+
 def hosting_ready():
     return getattr(settings, "USER_ADMIN_HOSTING_GRANTS_READY", False)
 
@@ -260,6 +264,8 @@ def _native_intents(actor, user, control, change, before, force_block=False):
             ).exists()
         ):
             held = "native_not_provisioned"
+        if not held and not native_scheduling_enabled():
+            held = "native_provisioning_deferred"
         if held:
             target, _ = Target.objects.get_or_create(
                 user=user,

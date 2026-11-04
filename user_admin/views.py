@@ -13,7 +13,13 @@ from rest_framework.views import APIView
 from .authentication import EpochJWTAuthentication
 from .grants import MANAGED
 from .models import Operation, Target, UserChange
-from .service import ChangeError, apply_change, editable_services, row
+from .service import (
+    ChangeError,
+    apply_change,
+    editable_services,
+    native_scheduling_enabled,
+    row,
+)
 
 
 class AdministrationError(APIException):
@@ -70,7 +76,11 @@ class AdministratorView(APIView):
                 "detail": (
                     "Existing result returned; no changes or password updates."
                     if replayed
-                    else "Central changes saved; native status must be checked separately."
+                    else (
+                        "Central changes saved; native status must be checked separately."
+                        if native_scheduling_enabled()
+                        else "Central changes saved; external provisioning is deferred."
+                    )
                 ),
             },
             status=202,
@@ -86,6 +96,7 @@ class CapabilitiesView(AdministratorView):
                 "administrator": True,
                 "actor_id": request.user.pk,
                 "enabled": bool(getattr(settings, "USER_ADMIN_API_ENABLED", False)),
+                "native_scheduling_enabled": native_scheduling_enabled(),
                 "native_execution_enabled": bool(
                     getattr(settings, "USER_ADMIN_NATIVE_EXECUTION_ENABLED", False)
                 ),
@@ -150,6 +161,8 @@ class NativeManagementView(AdministratorView):
 
         if service not in Target.Service.values or action not in {"pause", "resume"}:
             raise AdministrationError("invalid_native_control", 400)
+        if action == "resume" and not native_scheduling_enabled():
+            raise AdministrationError("native_provisioning_deferred", 409)
         if type(request.data) is not dict or set(request.data) != {"expected_epoch"}:
             raise AdministrationError("invalid_native_control", 400)
         target = Target.objects.filter(user_id=user_id, service=service).first()

@@ -351,6 +351,19 @@ explicit `true`, `1` or `yes` enables the central API and portal card. Activatio
 requires separate release approval, a fresh Auth/PostgreSQL backup and baseline.
 The exact Users origin is allowed for the host-only central session bridge.
 
+`USER_ADMIN_NATIVE_SCHEDULING_ENABLED` separately defaults to false. In this
+central-only stage, central profiles/grants still change transactionally, but
+eligible native intents are recorded as `held/native_provisioning_deferred`, not
+executable work. Native resume returns 409; pause remains available to an
+authorized administrator. Turning scheduling on does not replay a prior
+idempotency key or automatically activate held intents. This is not a worker
+kill switch: previously accepted work needs its own explicit quiescence gate.
+Keep all worker profiles sealed/off during central-only delivery.
+
+Deploy this capability-producing backend before the matching Dashboard. The new
+Dashboard fails closed if `native_scheduling_enabled` is missing or malformed;
+older backends must not be presented as verified central-only mode.
+
 `USER_ADMIN_NATIVE_EXECUTION_ENABLED` is always false in the web process, even
 if an environment variable requests otherwise. No native credentials, adapters
 or worker are installed by enabling the central API. Hosting permission edits
