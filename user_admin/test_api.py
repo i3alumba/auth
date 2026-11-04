@@ -21,7 +21,9 @@ BASE = "/api/user-admin/"
 PASSWORD = "Synthetic-Central-Password-84!"
 
 
-@override_settings(USER_ADMIN_API_ENABLED=True)
+@override_settings(
+    USER_ADMIN_API_ENABLED=True, USER_ADMIN_NATIVE_SCHEDULING_ENABLED=True
+)
 class AdministrationAPITests(TestCase):
     def setUp(self):
         AdministrationLock.objects.get_or_create(pk=1)
@@ -68,6 +70,54 @@ class AdministrationAPITests(TestCase):
         if action:
             return self.client.post(url, data or {}, format="json", **headers)
         return self.client.patch(url, data or {}, format="json", **headers)
+
+    @override_settings(USER_ADMIN_NATIVE_SCHEDULING_ENABLED=False)
+    def test_central_only_creation_records_deferred_intents_not_executable_work(self):
+        with patch("user_admin.engine.execute") as execute:
+            response = self.create(
+                {"services": {"gitlab": True, "matrix": True, "minio": True}}
+            )
+        self.assertEqual(response.status_code, 202)
+        self.assertIn("deferred", response.json()["detail"])
+        user = get_user_model().objects.get(pk=response.json()["user"]["id"])
+        self.assertTrue(user.check_password(PASSWORD))
+        operations = Operation.objects.filter(target__user=user)
+        self.assertEqual(operations.count(), 3)
+        self.assertEqual(
+            set(operations.values_list("status", "error_code")),
+            {("held", "native_provisioning_deferred")},
+        )
+        self.assertFalse(operations.filter(status__in=["pending", "running"]).exists())
+        self.assertFalse(ServiceIdentity.objects.filter(user=user).exists())
+        execute.assert_not_called()
+        capabilities = self.client.get(BASE + "capabilities/").json()
+        self.assertIs(capabilities["native_scheduling_enabled"], False)
+        self.assertIs(capabilities["native_adapters_accepted"], False)
+
+    def test_central_only_idempotent_replay_does_not_activate_deferred_native_work(
+        self,
+    ):
+        key = uuid4()
+        payload = {"services": {"gitlab": True}}
+        with override_settings(USER_ADMIN_NATIVE_SCHEDULING_ENABLED=False):
+            response = self.create(payload, key=key)
+        self.assertEqual(response.status_code, 202)
+        replay = self.create(payload, key=key)
+        self.assertEqual(replay.status_code, 202)
+        self.assertTrue(replay.json()["replayed"])
+        operations = Operation.objects.filter(
+            target__user_id=response.json()["user"]["id"]
+        )
+        self.assertEqual(operations.count(), 1)
+        self.assertEqual(operations.get().status, "held")
+        self.assertEqual(operations.get().error_code, "native_provisioning_deferred")
+
+    @override_settings(USER_ADMIN_NATIVE_SCHEDULING_ENABLED="true")
+    def test_native_scheduling_capability_does_not_coerce_untyped_settings(self):
+        self.assertIs(
+            self.client.get(BASE + "capabilities/").json()["native_scheduling_enabled"],
+            False,
+        )
 
     def test_anonymous_cookie_only_and_staff_only_denied_no_store(self):
         self.client.credentials()
