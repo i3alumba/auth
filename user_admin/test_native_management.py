@@ -17,7 +17,9 @@ from .test_native_stages import StagedNative
 
 
 @override_settings(
-    USER_ADMIN_NATIVE_EXECUTION_ENABLED=True, USER_ADMIN_API_ENABLED=True
+    USER_ADMIN_NATIVE_EXECUTION_ENABLED=True,
+    USER_ADMIN_API_ENABLED=True,
+    USER_ADMIN_NATIVE_SCHEDULING_ENABLED=True,
 )
 class NativeManagementTests(TestCase):
     def setUp(self):
@@ -61,6 +63,26 @@ class NativeManagementTests(TestCase):
     def created(self):
         self.assertEqual(execute(self.create.pk, self.adapter), "succeeded")
         return Operation.objects.get(target=self.target, action="bind")
+
+    @override_settings(USER_ADMIN_NATIVE_SCHEDULING_ENABLED=False)
+    def test_central_only_api_cannot_resume_paused_native_work(self):
+        self.control()
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION="Bearer " + str(self.proof))
+        self.target.refresh_from_db()
+        epoch = self.target.authority_epoch
+        response = client.post(
+            f"/api/user-admin/users/{self.user.pk}/native/gitlab/resume/",
+            {"expected_epoch": epoch},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY=str(uuid4()),
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["code"], "native_provisioning_deferred")
+        self.target.refresh_from_db()
+        self.assertTrue(self.target.management_paused)
+        self.assertEqual(self.target.authority_epoch, epoch)
+        self.assertEqual(self.adapter.calls, [])
 
     def test_pause_before_claim_does_not_consult_adapter_or_claim_operation(self):
         state, replayed = self.control()

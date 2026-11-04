@@ -194,6 +194,10 @@ CSRF_TRUSTED_ORIGINS = [
 # The central API has a separate, default-off release switch; worker rollout and
 # credentials are separate. Preparing this switch does not authorize activation.
 USER_ADMIN_NATIVE_EXECUTION_ENABLED = False
+# Central-only rollout must not enqueue executable native work without credentials.
+USER_ADMIN_NATIVE_SCHEDULING_ENABLED = os.environ.get(
+    "USER_ADMIN_NATIVE_SCHEDULING_ENABLED", "false"
+).lower() in {"true", "1", "yes"}
 USER_ADMIN_API_ENABLED = os.environ.get("USER_ADMIN_API_ENABLED", "false").lower() in {
     "true",
     "1",
