@@ -84,6 +84,7 @@ class AccessTests(SSOFixture):
                 "jenkins": False,
                 "monitor": False,
                 "hosting": False,
+                "vllm": False,
                 "users": False,
             },
         )
@@ -1052,3 +1053,49 @@ class ProvisionTests(TestCase):
         self.config["users"].reverse()
         self.run_config(True)
         self.assertEqual(ProvisionRun.objects.get().fingerprint, before)
+
+
+class VllmPermissionTests(TestCase):
+    def test_readiness_explicit_grants_and_no_staff_fallback(self):
+        from django.contrib.auth import get_user_model
+        from django.test import override_settings
+        from user_admin.models import UserControl
+        from user_admin.grants import portal_allowed
+        from user_admin.service import editable_services
+
+        user = get_user_model().objects.create_user(username="vllm-test", is_staff=True)
+        self.assertFalse(portal_allowed(user, "vllm"))
+        self.assertNotIn("vllm", editable_services())
+        with override_settings(USER_ADMIN_VLLM_GRANTS_READY=True):
+            self.assertIn("vllm", editable_services())
+            self.assertFalse(portal_allowed(user, "vllm"))
+            control, _ = UserControl.objects.get_or_create(user=user)
+            control.service_preferences = {"vllm": True}
+            control.save()
+            self.assertTrue(portal_allowed(user, "vllm"))
+            control.service_preferences = {"vllm": False}
+            control.save()
+            self.assertFalse(portal_allowed(user, "vllm"))
+            user.is_superuser = True
+            self.assertTrue(portal_allowed(user, "vllm"))
+            user.is_active = False
+            self.assertFalse(portal_allowed(user, "vllm"))
+
+    def test_vllm_users_mutation_readiness_and_exact_origins(self):
+        from django.conf import settings
+        from django.test import override_settings
+        from user_admin.service import validate_changes, ChangeError, editable_services
+
+        self.assertIn("https://vllm.i3alumba.ru", settings.CORS_ALLOWED_ORIGINS)
+        self.assertIn("https://vllm.i3alumba.ru", settings.CSRF_TRUSTED_ORIGINS)
+        self.assertNotIn("https://*.vllm.i3alumba.ru", settings.CORS_ALLOWED_ORIGINS)
+        with override_settings(USER_ADMIN_VLLM_GRANTS_READY=False):
+            with self.assertRaises(ChangeError) as denied:
+                validate_changes({"services": {"vllm": True}})
+            self.assertEqual(denied.exception.code, "vllm_consumer_pending")
+            self.assertNotIn("vllm", editable_services())
+            validate_changes({"first_name": "Profile still editable"})
+        with override_settings(USER_ADMIN_VLLM_GRANTS_READY=True):
+            validate_changes({"services": {"vllm": True}})
+            validate_changes({"services": {"vllm": False}})
+            self.assertIn("vllm", editable_services())

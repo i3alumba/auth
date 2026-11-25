@@ -4,6 +4,7 @@ from user_admin.grants import portal_allowed
 from .models import Service, ServiceIdentity
 
 PORTAL_URLS = {
+    "vllm": "https://vllm.i3alumba.ru",
     "drive": "https://drive.i3alumba.ru",
     "matrix": "https://matrix.i3alumba.ru",
     "gitlab": "https://gitlab.i3alumba.ru",
@@ -39,7 +40,7 @@ def services_for(user):
                 if slug == "users"
                 else (
                     portal_allowed(user, slug)
-                    if slug in {"monitor", "hosting"}
+                    if slug in {"monitor", "hosting", "vllm"}
                     else bool(identity_for(user, services.get(slug)))
                 )
             ),
