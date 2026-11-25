@@ -291,3 +291,9 @@ REST_REGISTRATION = {
     "REGISTER_EMAIL_VERIFICATION_ENABLED": False,
     "RESET_PASSWORD_VERIFICATION_ENABLED": False,
 }
+
+# Dormant until the consumer has been verified.
+USER_ADMIN_VLLM_GRANTS_READY = (
+    os.getenv("USER_ADMIN_VLLM_GRANTS_READY", "false").lower() == "true"
+)
+CORS_ALLOWED_ORIGINS += ["https://vllm.i3alumba.ru"]

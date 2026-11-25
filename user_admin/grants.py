@@ -5,7 +5,7 @@ from django.conf import settings
 from sso.models import Service
 from .models import UserControl
 
-MANAGED = ("drive", "matrix", "gitlab", "minio", "monitor", "hosting")
+MANAGED = ("drive", "matrix", "gitlab", "minio", "monitor", "hosting", "vllm")
 PORTAL = ("monitor", "hosting")
 GROUP_SERVICES = ("drive", "matrix", "gitlab", "minio")
 
@@ -23,6 +23,8 @@ def assigned(user, slug, values=None):
     values = preferences(user) if values is None else values
     if slug in MANAGED and slug in values:
         return values[slug] is True
+    if slug == "vllm":
+        return False
     if slug in PORTAL:
         return bool(user.is_staff)
     service = Service.objects.filter(slug=slug).first()
@@ -38,6 +40,11 @@ def portal_allowed(user, slug):
     if not user or not user.is_authenticated or not user.is_active:
         return False
     values = preferences(user)
+    if slug == "vllm":
+        return bool(
+            getattr(settings, "USER_ADMIN_VLLM_GRANTS_READY", False)
+            and (user.is_superuser or values.get(slug) is True)
+        )
     if slug == "hosting" and not getattr(
         settings, "USER_ADMIN_HOSTING_GRANTS_READY", False
     ):

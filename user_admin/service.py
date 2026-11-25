@@ -42,7 +42,12 @@ def hosting_ready():
 
 
 def editable_services():
-    return tuple(slug for slug in MANAGED if slug != "hosting" or hosting_ready())
+    return tuple(
+        slug
+        for slug in MANAGED
+        if (slug != "hosting" or hosting_ready())
+        and (slug != "vllm" or getattr(settings, "USER_ADMIN_VLLM_GRANTS_READY", False))
+    )
 
 
 def etag(user):
@@ -76,7 +81,14 @@ def row(user):
     effective = services_for(user)
     cells = {}
     for slug in (*MANAGED, "jenkins"):
-        readonly = slug == "jenkins" or (slug == "hosting" and not hosting_ready())
+        readonly = (
+            (
+                slug == "vllm"
+                and not getattr(settings, "USER_ADMIN_VLLM_GRANTS_READY", False)
+            )
+            or slug == "jenkins"
+            or (slug == "hosting" and not hosting_ready())
+        )
         legacy_hosting = (
             slug == "hosting" and not hosting_ready() and slug not in values
         )
@@ -143,6 +155,10 @@ def validate_changes(data, create=False):
             raise ChangeError("invalid_services")
         if any(type(value) is not bool for value in grants.values()):
             raise ChangeError("invalid_services")
+        if "vllm" in grants and not getattr(
+            settings, "USER_ADMIN_VLLM_GRANTS_READY", False
+        ):
+            raise ChangeError("vllm_consumer_pending", 409)
         if "hosting" in grants and not hosting_ready():
             raise ChangeError("hosting_consumer_pending", 409)
     return data
