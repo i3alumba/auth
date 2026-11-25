@@ -413,3 +413,10 @@ The existing container entrypoint runs migrations, so do not start a production
 container as a build check. No backup, restart or deployment is performed by these
 tests. PostgreSQL-only concurrency and production proxy/static/cookie integration
 remain separate release gates.
+
+## vllm readiness
+
+`USER_ADMIN_VLLM_GRANTS_READY` defaults false. Only after separately verifying the
+consumer may an operator enable explicit Users grants. Staff alone never grants
+vllm access; the canonical active global administrator override applies after
+readiness. No native account provisioning or migration is required.
